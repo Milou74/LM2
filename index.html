@@ -375,10 +375,28 @@
                 this.init();
             }
 
-            init() {
-                this.loadFromStorage();
+            async init() {
+                await this.openDB();
+                await this.loadFromStorage();
                 this.setupEventListeners();
                 this.render();
+            }
+
+            openDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('gallery_db', 1);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('images')) {
+                            db.createObjectStore('images', { keyPath: 'id' });
+                        }
+                    };
+                    request.onsuccess = (e) => {
+                        this.db = e.target.result;
+                        resolve();
+                    };
+                    request.onerror = (e) => reject(e.target.error);
+                });
             }
 
             setupEventListeners() {
@@ -424,28 +442,75 @@
             handleFiles(files) {
                 for (const file of files) {
                     if (!file.type.startsWith('image/')) continue;
-                    
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        this.images.push({
+
+                    this.compressImage(file, async (compressedData) => {
+                        const newImage = {
                             id: Date.now() + Math.random(),
-                            data: e.target.result,
+                            data: compressedData,
                             name: file.name
-                        });
-                        this.saveToStorage();
+                        };
+                        this.images.push(newImage);
+                        await this.saveToStorage(newImage);
                         this.render();
-                    };
-                    reader.readAsDataURL(file);
+                    });
                 }
             }
 
-            saveToStorage() {
-                localStorage.setItem('gallery_images', JSON.stringify(this.images));
+            compressImage(file, callback, maxWidth = 1280, maxHeight = 1280, quality = 0.7) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let { width, height } = img;
+
+                        if (width > maxWidth || height > maxHeight) {
+                            const ratio = Math.min(maxWidth / width, maxHeight / height);
+                            width = Math.round(width * ratio);
+                            height = Math.round(height * ratio);
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // JPEG pour un poids réduit, PNG conservé si transparence utile
+                        const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                        const compressedData = canvas.toDataURL(outputType, quality);
+                        callback(compressedData);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            saveToStorage(image) {
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction('images', 'readwrite');
+                    tx.objectStore('images').put(image);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => {
+                        alert('Stockage plein ou erreur d\'écriture, supprime des images.');
+                        this.images.pop();
+                        resolve();
+                    };
+                });
             }
 
             loadFromStorage() {
-                const stored = localStorage.getItem('gallery_images');
-                this.images = stored ? JSON.parse(stored) : [];
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction('images', 'readonly');
+                    const request = tx.objectStore('images').getAll();
+                    request.onsuccess = () => {
+                        this.images = request.result || [];
+                        resolve();
+                    };
+                    request.onerror = () => {
+                        this.images = [];
+                        resolve();
+                    };
+                });
             }
 
             render() {
@@ -490,11 +555,13 @@
             }
 
             deleteImage() {
-                this.images = this.images.filter(i => i.id != this.selectedImageForDelete);
+                const id = this.selectedImageForDelete;
+                this.images = this.images.filter(i => i.id != id);
                 if (this.carouselIndex >= this.images.length) {
                     this.carouselIndex = Math.max(0, this.images.length - 1);
                 }
-                this.saveToStorage();
+                const tx = this.db.transaction('images', 'readwrite');
+                tx.objectStore('images').delete(id);
                 this.render();
                 this.closeModal();
             }
@@ -522,7 +589,8 @@
                 if (confirm('Supprimer toutes les images ? Cette action est irréversible.')) {
                     this.images = [];
                     this.carouselIndex = 0;
-                    this.saveToStorage();
+                    const tx = this.db.transaction('images', 'readwrite');
+                    tx.objectStore('images').clear();
                     this.render();
                 }
             }
