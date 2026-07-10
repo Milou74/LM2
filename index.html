@@ -1,41 +1,540 @@
-<!DOCTYPE html><html lang="fr">
+<!DOCTYPE html>
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualisation de Parquet en AR</title>
-    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/1.7.2/aframe/build/aframe-ar.min.js"></script>
+    <title>Galerie Images Base64</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #parquetSelector {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f4f4f2;
+            color: #1a1a1a;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            border-bottom: 2px solid #1a1a1a;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .header p {
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .upload-section {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #999;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            background: #fafafa;
+        }
+
+        .upload-zone:hover {
+            border-color: #1a1a1a;
+            background: #f0f0f0;
+        }
+
+        .upload-zone.active {
+            border-color: #1a1a1a;
+            background: #ececec;
+        }
+
+        .upload-zone input {
+            display: none;
+        }
+
+        .upload-text {
+            font-size: 1.05em;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .upload-text small {
+            color: #888;
+            display: block;
+            margin-top: 5px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: 1px solid #1a1a1a;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: background 0.2s, color 0.2s;
+            background: #ffffff;
+            color: #1a1a1a;
+        }
+
+        .btn-primary {
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #333;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            color: #1a1a1a;
+        }
+
+        .btn-secondary:hover {
+            background: #ececec;
+        }
+
+        .btn-danger {
+            background: #ffffff;
+            color: #b3261e;
+            border-color: #b3261e;
+        }
+
+        .btn-danger:hover {
+            background: #b3261e;
+            color: #ffffff;
+        }
+
+        .views-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .view-card {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 20px;
+        }
+
+        .view-card h2 {
+            color: #1a1a1a;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            font-weight: 700;
+        }
+
+        .gallery-view {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .gallery-item {
+            position: relative;
+            border: 1px solid #ddd;
+            overflow: hidden;
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .gallery-item:hover {
+            border-color: #1a1a1a;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-item.active {
+            border: 2px solid #1a1a1a;
+        }
+
+        .carousel-viewer {
+            position: relative;
+        }
+
+        .carousel-display {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            padding: 20px;
+            text-align: center;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .carousel-display img {
+            max-width: 100%;
+            max-height: 350px;
+            object-fit: contain;
+        }
+
+        .carousel-display.empty {
+            color: #888;
+            font-style: italic;
+        }
+
+        .carousel-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .carousel-controls button {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .carousel-counter {
+            color: #1a1a1a;
+            font-weight: 600;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .stats {
+            background: #fafafa;
+            border: 1px solid #ddd;
+            padding: 12px;
+            margin-top: 15px;
+            color: #1a1a1a;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-close {
             position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 10;
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
+            top: 15px;
+            right: 15px;
+            background: #ffffff;
+            border: 1px solid #1a1a1a;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 1.1em;
+            color: #1a1a1a;
+        }
+
+        .modal-close:hover {
+            background: #ececec;
+        }
+
+        .modal-image {
+            width: 100%;
+            margin-bottom: 20px;
+            max-height: 500px;
+            object-fit: contain;
+            border: 1px solid #ddd;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        @media (max-width: 768px) {
+            .views-container {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.6em;
+            }
+
+            .gallery-view {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
         }
     </style>
 </head>
 <body>
-    <select id="parquetSelector">
-        <option value="istockphoto-185250199-612x612.jpg">Parquet 1</option>
-        <option value="parquet2.jpg">Parquet 2</option>
-        <option value="parquet3.jpg">Parquet 3</option>
-    </select><a-scene embedded arjs>
-    <a-marker preset="custom">
-        <a-plane id="parquet" position="0 0 0" rotation="-90 0 0" width="5" height="5" material="src: istockphoto-185250199-612x612.jpg; repeat: 2 2"></a-plane>
-    </a-marker>
-    <a-entity camera></a-entity>
-</a-scene>
+    <div class="container">
+        <div class="header">
+            <h1>📸 Galerie Images</h1>
+            <p>Upload, stocke et visualise tes images en base64</p>
+        </div>
 
-<script>
-    document.getElementById("parquetSelector").addEventListener("change", function(event) {
-        document.getElementById("parquet").setAttribute("material", "src", event.target.value);
-    });
-</script>
+        <div class="upload-section">
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-text">
+                    Dépose tes images ici
+                    <small>ou clique pour sélectionner (JPG, PNG, WebP)</small>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" multiple>
+            </div>
+            <div class="action-buttons">
+                <button class="btn-primary" id="selectBtn">Sélectionner des images</button>
+                <button class="btn-danger" id="clearBtn">Tout supprimer</button>
+            </div>
+        </div>
 
+        <div class="views-container">
+            <div class="view-card">
+                <h2>📋 Galerie</h2>
+                <div class="gallery-view" id="gallery"></div>
+                <div class="stats" id="statsGallery">0 images</div>
+            </div>
+
+            <div class="view-card">
+                <h2>🎠 Carousel</h2>
+                <div class="carousel-viewer">
+                    <div class="carousel-display" id="carouselDisplay"></div>
+                    <div class="carousel-controls">
+                        <button class="btn-secondary" id="prevBtn">← Précédent</button>
+                        <div class="carousel-counter" id="carouselCounter">0/0</div>
+                        <button class="btn-secondary" id="nextBtn">Suivant →</button>
+                    </div>
+                    <div class="stats" id="statsCarousel">Aucune image</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="imageModal">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">×</button>
+            <img id="modalImage" class="modal-image" alt="Image agrandie">
+            <div class="modal-actions">
+                <button class="btn-danger" id="deleteBtn">Supprimer cette image</button>
+                <button class="btn-secondary" id="closeBtn">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ImageGallery {
+            constructor() {
+                this.images = [];
+                this.carouselIndex = 0;
+                this.selectedImageForDelete = null;
+                this.init();
+            }
+
+            init() {
+                this.loadFromStorage();
+                this.setupEventListeners();
+                this.render();
+            }
+
+            setupEventListeners() {
+                const fileInput = document.getElementById('fileInput');
+                const uploadZone = document.getElementById('uploadZone');
+                const selectBtn = document.getElementById('selectBtn');
+                const clearBtn = document.getElementById('clearBtn');
+                const prevBtn = document.getElementById('prevBtn');
+                const nextBtn = document.getElementById('nextBtn');
+                const modalClose = document.getElementById('modalClose');
+                const closeBtn = document.getElementById('closeBtn');
+                const deleteBtn = document.getElementById('deleteBtn');
+
+                // Upload
+                fileInput.addEventListener('change', (e) => this.handleFiles(e.target.files));
+                selectBtn.addEventListener('click', () => fileInput.click());
+                uploadZone.addEventListener('click', () => fileInput.click());
+                uploadZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadZone.classList.add('active');
+                });
+                uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('active'));
+                uploadZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadZone.classList.remove('active');
+                    this.handleFiles(e.dataTransfer.files);
+                });
+
+                // Controls
+                clearBtn.addEventListener('click', () => this.clearAll());
+                prevBtn.addEventListener('click', () => this.prevImage());
+                nextBtn.addEventListener('click', () => this.nextImage());
+
+                // Modal
+                modalClose.addEventListener('click', () => this.closeModal());
+                closeBtn.addEventListener('click', () => this.closeModal());
+                deleteBtn.addEventListener('click', () => this.deleteImage());
+                document.getElementById('imageModal').addEventListener('click', (e) => {
+                    if (e.target.id === 'imageModal') this.closeModal();
+                });
+            }
+
+            handleFiles(files) {
+                for (const file of files) {
+                    if (!file.type.startsWith('image/')) continue;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.images.push({
+                            id: Date.now() + Math.random(),
+                            data: e.target.result,
+                            name: file.name
+                        });
+                        this.saveToStorage();
+                        this.render();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            saveToStorage() {
+                localStorage.setItem('gallery_images', JSON.stringify(this.images));
+            }
+
+            loadFromStorage() {
+                const stored = localStorage.getItem('gallery_images');
+                this.images = stored ? JSON.parse(stored) : [];
+            }
+
+            render() {
+                this.renderGallery();
+                this.renderCarousel();
+                this.updateStats();
+            }
+
+            renderGallery() {
+                const gallery = document.getElementById('gallery');
+                gallery.innerHTML = this.images.map(img => `
+                    <div class="gallery-item" onclick="gallery.selectImage('${img.id}')">
+                        <img src="${img.data}" alt="${img.name}">
+                    </div>
+                `).join('');
+            }
+
+            renderCarousel() {
+                const display = document.getElementById('carouselDisplay');
+                const counter = document.getElementById('carouselCounter');
+
+                if (this.images.length === 0) {
+                    display.classList.add('empty');
+                    display.textContent = 'Aucune image, commence par en upload une';
+                    counter.textContent = '0/0';
+                    return;
+                }
+
+                display.classList.remove('empty');
+                const img = this.images[this.carouselIndex];
+                display.innerHTML = `<img src="${img.data}" alt="${img.name}">`;
+                counter.textContent = `${this.carouselIndex + 1}/${this.images.length}`;
+            }
+
+            selectImage(id) {
+                const img = this.images.find(i => i.id == id);
+                if (img) {
+                    document.getElementById('modalImage').src = img.data;
+                    this.selectedImageForDelete = id;
+                    document.getElementById('imageModal').classList.add('active');
+                }
+            }
+
+            deleteImage() {
+                this.images = this.images.filter(i => i.id != this.selectedImageForDelete);
+                if (this.carouselIndex >= this.images.length) {
+                    this.carouselIndex = Math.max(0, this.images.length - 1);
+                }
+                this.saveToStorage();
+                this.render();
+                this.closeModal();
+            }
+
+            closeModal() {
+                document.getElementById('imageModal').classList.remove('active');
+                this.selectedImageForDelete = null;
+            }
+
+            nextImage() {
+                if (this.images.length > 0) {
+                    this.carouselIndex = (this.carouselIndex + 1) % this.images.length;
+                    this.renderCarousel();
+                }
+            }
+
+            prevImage() {
+                if (this.images.length > 0) {
+                    this.carouselIndex = (this.carouselIndex - 1 + this.images.length) % this.images.length;
+                    this.renderCarousel();
+                }
+            }
+
+            clearAll() {
+                if (confirm('Supprimer toutes les images ? Cette action est irréversible.')) {
+                    this.images = [];
+                    this.carouselIndex = 0;
+                    this.saveToStorage();
+                    this.render();
+                }
+            }
+
+            updateStats() {
+                const count = this.images.length;
+                document.getElementById('statsGallery').textContent = `${count} ${count === 1 ? 'image' : 'images'}`;
+                document.getElementById('statsCarousel').textContent = count === 0 ? 'Aucune image' : `Total: ${count}`;
+            }
+        }
+
+        const gallery = new ImageGallery();
+    </script>
 </body>
 </html>
