@@ -170,7 +170,8 @@
             border-color: #1a1a1a;
         }
 
-        .gallery-item img {
+        .gallery-item img,
+        .gallery-item video {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -195,7 +196,8 @@
             justify-content: center;
         }
 
-        .carousel-display img {
+        .carousel-display img,
+        .carousel-display video {
             max-width: 100%;
             max-height: 350px;
             object-fit: contain;
@@ -315,17 +317,17 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📸 Galerie Images</h1>
-            <p>Upload, stocke et visualise tes images en base64</p>
+            <h1>📸 Galerie Images & Vidéos</h1>
+            <p>Upload, stocke et visualise tes médias en local</p>
         </div>
 
         <div class="upload-section">
             <div class="upload-zone" id="uploadZone">
                 <div class="upload-text">
-                    Dépose tes images ici
-                    <small>ou clique pour sélectionner (JPG, PNG, WebP)</small>
+                    Dépose tes fichiers ici
+                    <small>ou clique pour sélectionner (JPG, PNG, WebP, MP4, WebM, petites vidéos uniquement)</small>
                 </div>
-                <input type="file" id="fileInput" accept="image/*" multiple>
+                <input type="file" id="fileInput" accept="image/*,video/*" multiple>
             </div>
             <div class="action-buttons">
                 <button class="btn-primary" id="selectBtn">Sélectionner des images</button>
@@ -359,8 +361,9 @@
         <div class="modal-content">
             <button class="modal-close" id="modalClose">×</button>
             <img id="modalImage" class="modal-image" alt="Image agrandie">
+            <video id="modalVideo" class="modal-image" controls style="display:none;"></video>
             <div class="modal-actions">
-                <button class="btn-danger" id="deleteBtn">Supprimer cette image</button>
+                <button class="btn-danger" id="deleteBtn">Supprimer ce média</button>
                 <button class="btn-secondary" id="closeBtn">Fermer</button>
             </div>
         </div>
@@ -440,19 +443,40 @@
             }
 
             handleFiles(files) {
-                for (const file of files) {
-                    if (!file.type.startsWith('image/')) continue;
+                const MAX_VIDEO_MB = 15;
 
-                    this.compressImage(file, async (compressedData) => {
-                        const newImage = {
-                            id: Date.now() + Math.random(),
-                            data: compressedData,
-                            name: file.name
+                for (const file of files) {
+                    if (file.type.startsWith('image/')) {
+                        this.compressImage(file, async (compressedData) => {
+                            const newMedia = {
+                                id: Date.now() + Math.random(),
+                                data: compressedData,
+                                name: file.name,
+                                type: 'image'
+                            };
+                            this.images.push(newMedia);
+                            await this.saveToStorage(newMedia);
+                            this.render();
+                        });
+                    } else if (file.type.startsWith('video/')) {
+                        if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+                            alert(`Vidéo trop lourde (max ${MAX_VIDEO_MB} Mo), choisis un fichier plus léger.`);
+                            continue;
+                        }
+                        const reader = new FileReader();
+                        reader.onload = async (e) => {
+                            const newMedia = {
+                                id: Date.now() + Math.random(),
+                                data: e.target.result,
+                                name: file.name,
+                                type: 'video'
+                            };
+                            this.images.push(newMedia);
+                            await this.saveToStorage(newMedia);
+                            this.render();
                         };
-                        this.images.push(newImage);
-                        await this.saveToStorage(newImage);
-                        this.render();
-                    });
+                        reader.readAsDataURL(file);
+                    }
                 }
             }
 
@@ -521,9 +545,11 @@
 
             renderGallery() {
                 const gallery = document.getElementById('gallery');
-                gallery.innerHTML = this.images.map(img => `
-                    <div class="gallery-item" onclick="gallery.selectImage('${img.id}')">
-                        <img src="${img.data}" alt="${img.name}">
+                gallery.innerHTML = this.images.map(media => `
+                    <div class="gallery-item" onclick="gallery.selectImage('${media.id}')">
+                        ${media.type === 'video'
+                            ? `<video src="${media.data}" muted></video>`
+                            : `<img src="${media.data}" alt="${media.name}">`}
                     </div>
                 `).join('');
             }
@@ -540,15 +566,28 @@
                 }
 
                 display.classList.remove('empty');
-                const img = this.images[this.carouselIndex];
-                display.innerHTML = `<img src="${img.data}" alt="${img.name}">`;
+                const media = this.images[this.carouselIndex];
+                display.innerHTML = media.type === 'video'
+                    ? `<video src="${media.data}" controls></video>`
+                    : `<img src="${media.data}" alt="${media.name}">`;
                 counter.textContent = `${this.carouselIndex + 1}/${this.images.length}`;
             }
 
             selectImage(id) {
-                const img = this.images.find(i => i.id == id);
-                if (img) {
-                    document.getElementById('modalImage').src = img.data;
+                const media = this.images.find(i => i.id == id);
+                if (media) {
+                    const modalImg = document.getElementById('modalImage');
+                    const modalVideo = document.getElementById('modalVideo');
+                    if (media.type === 'video') {
+                        modalVideo.src = media.data;
+                        modalVideo.style.display = 'block';
+                        modalImg.style.display = 'none';
+                    } else {
+                        modalImg.src = media.data;
+                        modalImg.style.display = 'block';
+                        modalVideo.style.display = 'none';
+                        modalVideo.src = '';
+                    }
                     this.selectedImageForDelete = id;
                     document.getElementById('imageModal').classList.add('active');
                 }
@@ -606,3 +645,5 @@
     </script>
 </body>
 </html>
+
+            
